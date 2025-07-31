@@ -20,5 +20,5 @@ DESTDIR="${DESTDIR:-}"
 
 set -x
 install -m 0755 -o root -g root dumptruck "$DESTDIR$PREFIX/bin/dumptruck"
-install -d -m 0755 -o root -g root "$DESTDIR$PREFIX/share/man/man1"
-install -m 0644 -o root -g root dumptruck.8 -o "$DESTDIR$PREFIX/share/man/man8/dumptruck.8"
+install -d -m 0755 -o root -g root "$DESTDIR$PREFIX/share/man/man8"
+install -m 0644 -o root -g root dumptruck.8 "$DESTDIR$PREFIX/share/man/man8/dumptruck.8"
