@@ -104,23 +104,52 @@ configure_level() {
 
 # scan existing backups files into the BACKUPS array
 scan_backups() {
-    local name file
-    BACKUPS=()
+    local name file level backups match
+    level=
+    backups=()
     msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
-    pcre_compile "^$BACKUP_NAME-[\d:-]+\.L\d\.$FTYPE\.zst(?:\.age)?$" || exit 100
+    if [[ $1 =~ -[[:digit:]] ]]; then
+        level="${1#-}"
+        msg -debug "limiting to level $level"
+    fi
+    pcre_compile "^$BACKUP_NAME-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
     for file in "$BACKUP_DIR/$BACKUP_NAME"-*; do
         name="$(basename $file)"
         if pcre_match "$name"; then
-            msg -debug "found backup $name"
-            BACKUPS+="$name"
+            if [[ -z $level || $match[1] = $level ]]; then
+                msg -debug "found backup $name"
+                backups+="$name"
+            fi
         else
             msg -debug "file $name does not match backup pattern"
         fi
     done
 
     # sort the array
-    set -sA BACKUPS "$BACKUPS[@]"
-    msg -debug "scanned ${#BACKUPS} backups"
+    msg -debug "scanned ${#backups} backups"
+    set -sA BACKUPS "$backups[@]"
+}
+
+# clean up the backups according to expiration
+clean_backups() {
+    _prune_backups_for_level 2 5
+    _prune_backups_for_level 1 5
+    _prune_backups_for_level 0 12
+}
+
+_prune_backups_for_level() {
+    local level="$1" count="$2" n file
+    scan_backups "-$level"
+    msg "found ${#BACKUPS} L$level backups, want to keep $count"
+    while ((${#BACKUPS} > $count)); do
+        file="$BACKUPS[1]"
+        shift BACKUPS
+        if (($opt_dry)); then
+            msg "would remove $file"
+        else
+            rm "$BACKUP_DIR/$file"
+        fi
+    done
 }
 
 #endregion
@@ -251,6 +280,9 @@ _cleanup() {
 
 setup_output() {
     print -v BACKUP_FILE -P "$BACKUP_NAME-%D{%Y-%m-%d-%H:%M:%S}.L${BACKUP_LEVEL}.${FTYPE}.zst"
+    if [[ -z $RECIPIENT_FILE && -f "$BACKUP_DIR/recipients.txt" ]]; then
+        RECIPIENT_FILE="$BACKUP_DIR/recipients.txt"
+    fi
     if [[ $RECIPIENT_FILE ]]; then
         BACKUP_FILE="${BACKUP_FILE}.age"
     fi
