@@ -1,0 +1,6 @@
+#!/bin/sh
+#MISE description="Build manpage."
+
+set -ex
+
+pandoc -t man -s -o dumptruck.8 dumptruck.md

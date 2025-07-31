@@ -1,0 +1,24 @@
+#!/bin/zsh
+#MISE description="Install dumptruck."
+
+set -e
+
+zmodload zsh/zutil
+zparseopts -D -E -F -A cli_opts - s -sudo || exit 2
+
+if (( $UID != 0 )); then
+	if [[ -v cli_opts[-s] || -v cli_opts[--sudo] ]]; then
+        echo "re-executing with sudo" >&2
+        exec sudo "$0"
+    else
+        echo "not running as root, install will likely fail" >&2
+    fi
+fi
+
+PREFIX="${PREFIX:-/usr/local}"
+DESTDIR="${DESTDIR:-}"
+
+set -x
+install -m 0755 -o root -g root dumptruck "$DESTDIR$PREFIX/bin/dumptruck"
+install -d -m 0755 -o root -g root "$DESTDIR$PREFIX/share/man/man1"
+install -m 0644 -o root -g root dumptruck.8 -o "$DESTDIR$PREFIX/share/man/man8/dumptruck.8"

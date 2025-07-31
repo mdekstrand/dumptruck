@@ -4,3 +4,8 @@ experimental = true
 [tools]
 shfmt = "latest"
 pandoc = "latest"
+
+[task_config]
+includes = [
+    "tasks"
+]
