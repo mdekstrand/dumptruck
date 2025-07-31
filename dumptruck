@@ -213,6 +213,19 @@ xfsdump_prepare() {
     # xfsdump requies no preparation
 }
 
+xfsdump_backup() {
+    if (($# > 1)); then
+        msg -error "XFS can only back up single paths"
+        exit 3
+    fi
+    if ((!$opt_dry)); then
+        if ! xfsdump -L "dumptruck-$BACKUP_NAME" -l "$BACKUP_LEVEL" -e - "$1" | write_backup; then
+            msg -error "backup failed"
+            exit 4
+        fi
+    fi
+}
+
 xfsdump_save() {
     # xfsdump has no post-save action
 }
