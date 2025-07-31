@@ -140,7 +140,7 @@ scan_backups() {
 
 # list the backup files
 list_backups() {
-    local name level date enc i etag size
+    local name level date enc i pad etag size
     name=
     scan_backups -a
     pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
@@ -156,15 +156,16 @@ list_backups() {
         date="$match[2]"
         level="$match[3]"
         enc="$match[4]"
+        pad="  "
         size=$(_friendly_size "$BACKUP_DIR/$backup")
-        for ((i = 0; i <= $level; i++)); do
-            print -n "  "
+        for ((i = 0; i < $level; i++)); do
+            pad="$pad  "
         done
         etag=
         if [[$enc]]; then
             etag=" (%B%F{green}encrypted%f%b)"
         fi
-        print -P "%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
+        print -P "$pad%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
     done
 }
 
