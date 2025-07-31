@@ -16,9 +16,13 @@
 directories, automatically handling levels and pruning of old backups.
 It supports the following backup methods:
 
-- _xfsdump_(8) (requires a single _PATH_ naming the root of an XFS volume).
-- _tar_(1) (accepts multiple paths, requires GNU _tar_ and uses
-  `--listed-incremental` to implement differential backups).
+xfsdump
+:   Uses _xfsdump_(8) to dump the file system.  Only works with a single
+    _PATH_, which must be the root of an XFS volume.
+
+gnutar
+:   Uses GNU _tar_(1)  to archive one or more paths, using
+    `--listed-incremental` to implement differential dump-style backups.
 
 Backups are automatically compressed (with _zstd_(1)) and optionally encrypted
 (with _age_(1)).  Notably, _dumptruck_ does **not** require access to the private
@@ -42,10 +46,11 @@ when setting up backups in a _systemd_ service.
     _recipients.txt_ in the backup directory.
 
 **-L, -\-level** _LEVEL_ (`$BACKUP_LEVEL`)
-:   Specify the backup level (0--9, but usually 0--2).
+:   Specify the backup level (0--9, but usually 0--2).  The default is automatically
+    detected according to a backup schedule.
 
-**-m, -\-method** _METHOD_
-:   Use backup method _METHOD_ (**tar** or **xfsdump**).
+**-m, -\-method** _METHOD_ (`$BACKUP_METHOD`)
+:   Use backup method _METHOD_ (**gnutar** or **xfsdump**).  Defaults to **gnutar**.
 
 **-n, -\-dry-run**
 :   Don't back up, only print what would be done.
@@ -53,9 +58,31 @@ when setting up backups in a _systemd_ service.
 **-N, -\-name** _NAME_ (`$BACKUP_NAME`)
 :   Name backups _NAME_ (default: "backup").
 
+**-\-rage**
+:   Encrypt with _rage_(1) instead of _age_(1).  Support for _rage_ can also be
+    invoked by setting the environment variable `AGE=rage`.
+
 **-W, -\-work-dir** _DIR_ (`$BACKUP_WORK`)
 :   Persistent work directory for backup cache files (default: _/var/lib/dumptruck_).
     Currently only needed by the **tar** backend (to store the files needed by `--listed-incremental`).
+
+# REQUIREMENTS
+
+**dumptruck** requires the following software installed:
+
+- _zsh_(1) (_dumptruck_ is implemented as a Z shell script)
+- _zstd_(1) to compress backups
+- _age_(1) to encrypt backups
+- GNU _tar_(1), when using the **tar** backup method
+- _xfsdump_(8), when using the **xfsdump** backup method
+
+# BUGS
+
+- Only _zstd_(1) compression is supported (but why use anything else?).
+- The expiration policy cannot yet be configured.
+- The backup schedule cannot yet be configured.
+- BSD _dump_(8) is not yet supported. There is no reason why it shouldn't work,
+  it just hasn't been tested.
 
 # SEE ALSO
 

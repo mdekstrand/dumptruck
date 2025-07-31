@@ -3,3 +3,69 @@
 set -o pipefail
 
 zmodload zsh/zutil
+
+# SETUP Initialze environment variables to their defaults
+: "${AGE:=age}"
+: "${BACKUP_METHOD:=gnutar}"
+: "${BACKUP_NAME:=backup}"
+# BACKUP_LEVEL (auto-detected)
+# BACKUP_DIR (required)
+: "${BACKUP_WORK:=/var/lib/dumptruck}"
+# RECIPIENT_FILE (auto)
+opt_cleanup=0
+opt_dry=0
+
+# INVOKE Parse and invoke command-line arguments
+zparseopts -D -E -F -a cli_opts - \
+    c -cleanup n -dry-run -rage \
+    d: -backup-dir: \
+    E: -encrypt-to: \
+    L: -level: \
+    m: -method: \
+    N: -name: \
+    W: -work-dir:
+
+if (($?)); then
+    exit 2
+fi
+while ((${#cli_opts})); do
+    flag="${cli_opts[1]}"
+    shift cli_opts
+    case "$flag" in
+    -c | --cleanup)
+        opt_cleanup=1
+        ;;
+    -n | --dry-run)
+        opt_dry=1
+        ;;
+    --rage)
+        AGE=rage
+        ;;
+    -d | --backup-dir)
+        BACKUP_DIR="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    -E | --encrypt-to)
+        RECIPIENT_FILE="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    -L | --level)
+        BACKUP_LEVEL="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    -m | --method)
+        BACKUP_METHOD="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    -N | --name)
+        BACKUP_NAME="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    -W | --work-dir)
+        BACKUP_WORK="${cli_opts[1]}"
+        shift cli_opts
+        ;;
+    esac
+done
+
+set | grep '^BACKUP'
