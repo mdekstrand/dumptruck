@@ -1,0 +1,5 @@
+#!/bin/zsh
+
+set -o pipefail
+
+zmodload zsh/zutil

@@ -1,0 +1,6 @@
+[settings]
+experimental = true
+
+[tools]
+shfmt = "latest"
+pandoc = "latest"
