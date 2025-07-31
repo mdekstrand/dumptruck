@@ -19,6 +19,7 @@ zmodload zsh/pcre
 opt_cleanup=0
 opt_dry=0
 opt_verbose=0
+action=default
 
 # working variables
 typeset -a BACKUPS
@@ -130,9 +131,38 @@ scan_backups() {
     set -sA BACKUPS "$backups[@]"
 }
 
+# list the backup files
+list_backups() {
+    local name level date enc i etag
+    name=
+    scan_backups
+    pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
+    for backup in "$BACKUPS[@]"; do
+        if ! pcre_match "$backup"; then
+            msg -error "invalid backup file: $backup"
+            continue
+        fi
+        if [[ $match[1] != $name ]]; then
+            name="$match[1]"
+            print -P "%BBackups for %F{magenta}$name%f:%b"
+        fi
+        date="$match[2]"
+        level="$match[3]"
+        enc="$match[4]"
+        for ((i = 0; i <= $level; i++)); do
+            print -n "  "
+        done
+        etag=
+        if [[$enc]]; then
+            etag=" (%B%F{green}encrypted%f%b)"
+        fi
+        print -P "%BL$level:%b %F{cyan}$date%f$etag"
+    done
+}
+
 # clean up the backups according to expiration
 clean_backups() {
-    _prune_backups_for_level 2 5
+    _prune_backups_for_level 2 10
     _prune_backups_for_level 1 5
     _prune_backups_for_level 0 12
 }
@@ -323,7 +353,7 @@ commit_backup() {
 
 #region Command-line argument parsing
 zparseopts -D -E -F -a cli_opts - \
-    c -cleanup n -dry-run v --verbose -rage \
+    c -cleanup n -dry-run v --verbose -rage -list \
     d: -backup-dir: \
     E: -encrypt-to: \
     L: -level: \
@@ -348,6 +378,10 @@ while ((${#cli_opts})); do
     -n | --dry-run)
         msg -debug "enabling dry-run"
         opt_dry=1
+        ;;
+    --list)
+        msg -debug "listing backups"
+        action=list
         ;;
     --rage)
         msg -debug "using rage"
@@ -398,6 +432,11 @@ if [[ -z $BACKUP_DIR ]]; then
     exit 2
 fi
 #endregion
+
+if [[ $action = list ]]; then
+    list_backups
+    exit
+fi
 
 scan_backups
 configure_level
