@@ -4,7 +4,7 @@ set -o pipefail
 
 zmodload zsh/zutil
 
-# SETUP Initialze environment variables to their defaults
+## SETUP Initialze environment variables to their defaults
 : "${AGE:=age}"
 : "${BACKUP_METHOD:=gnutar}"
 : "${BACKUP_NAME:=backup}"
@@ -14,10 +14,181 @@ zmodload zsh/zutil
 # RECIPIENT_FILE (auto)
 opt_cleanup=0
 opt_dry=0
+opt_verbose=0
+
+## FUNCTIONS
+#!/bin/sh
+_msg_prefix() {
+    if [ -n "$MDX_MSG_PREFIX" ]; then
+        echo -n "$MDX_MSG_PREFIX: "
+    fi
+}
+
+_msg_error() {
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "ERROR: $*" >&2
+        else
+            print -P "%B%F{red}ERROR:%f%b $*" >&2
+        fi
+    fi
+}
+
+_msg_warn() {
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "WARNING: $*" >&2
+        else
+            print -P "%F{yellow}WARNING:%f $*" >&2
+        fi
+    fi
+}
+
+_msg_info() {
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        echo "$@" >&2
+    fi
+}
+
+_msg_action() {
+    local symbol="💃🏻"
+    if [ "$1" = -symbol ]; then
+        symbol="$2"
+        shift 2
+    fi
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "$symbol $*" >&2
+        else
+            print -P "$symbol %B$*%b" >&2
+        fi
+    fi
+}
+
+echo-run() {
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "» \e[02m$*\e[0m" >&2
+        else
+            print -P "» %{\e[02m%}$*%{\e[0m%}" >&2
+        fi
+    fi
+    "$@"
+    return "$?"
+}
+
+_msg_success() {
+    local symbol="✅"
+    if [ "$1" = -symbol ]; then
+        symbol="$2"
+        shift 2
+    fi
+    if [ "${MDX_VERBOSE:-0}" -ge 0 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "$symbol $*" >&2
+        else
+            print -P "$symbol %B%F{green}$*%f%b" >&2
+        fi
+    fi
+}
+
+_msg_debug() {
+    if [ "${MDX_VERBOSE:-0}" -ge 1 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "DEBUG: $*" >&2
+        else
+            print -P "%F{cyan}DEBUG: $*%f" >&2
+        fi
+    fi
+}
+
+_msg_trace() {
+    if [ "${MDX_VERBOSE:-0}" -ge 2 ]; then
+        _msg_prefix
+        if [ -z "$ZSH_VERSION" ]; then
+            echo "DEBUG: $*" >&2
+        else
+            print -P "%F{cyan}DEBUG: $*%f" >&2
+        fi
+    fi
+}
+
+msg() {
+    local pfx="%BMSG:%b"
+    local sfx=""
+    case "$1" in
+    -dbg | -debug)
+        pfx="%F{cyan}DBG:"
+        sfx="%f"
+        if ((!$opt_verbose)); then
+            return
+        fi
+        shift
+        ;;
+    -info)
+        shift
+        ;;
+    -warn)
+        pfx="%B%F{yellow}WRN:"
+        sfx="%f%b"
+        shift
+        ;;
+    -err | -error)
+        pfx="%B%F{red}ERR:"
+        sfx="%f%b"
+        shift
+        ;;
+    esac
+    print -P "$pfx $*$sfx" >&2
+}
+
+auto_level() {
+    local DOM DOW
+    DOM=$(print -P %D{%f})
+    DOW=$(print -P %D{%w})
+    if [[ -z "$LEVEL" ]]; then
+        msg -debug "auto-selecting backup level"
+        if [[ $DOM = 1 ]]; then
+            msg "first day of the month, trying L0 backup"
+            LEVEL=0
+        elif [[ $DOW = 0 ]]; then
+            msg "first day of the week, trying L1 backup"
+            LEVEL=1
+        else
+            msg "trying L2 backup"
+            LEVEL=2
+        fi
+    else
+        msg "L$LEVEL backup requested"
+    fi
+
+    if ((${#BACKUPS} == 0)); then
+        msg "no backups exist, using L0"
+        LEVEL=0
+    elif (($LEVEL > 0)); then
+        LAST_LVL=$(echo $BACKUPS[-1] | sed -Ee 's/^.*\.dump(.)\..*/\1/')
+        msg -debug "last backup level: $LAST_LVL"
+        if (($LEVEL > $LAST_LVL + 1)); then
+            LEVEL=$(($LAST_LVL + 1))
+            msg "last level is $LAST_LEVEL, using level $LEVEL"
+        fi
+    fi
+}
+
+list_backups() {
+    ls "$BACKUP_DIR" | grep -E "^$NAME-.*.$FTYPE(.age)?" | sort
+}
 
 # INVOKE Parse and invoke command-line arguments
 zparseopts -D -E -F -a cli_opts - \
-    c -cleanup n -dry-run -rage \
+    c -cleanup n -dry-run v --verbose -rage \
     d: -backup-dir: \
     E: -encrypt-to: \
     L: -level: \
@@ -32,13 +203,19 @@ while ((${#cli_opts})); do
     flag="${cli_opts[1]}"
     shift cli_opts
     case "$flag" in
+    -v | --verbose)
+        opt_verbose=1
+        ;;
     -c | --cleanup)
+        msg -debug "enabling cleanup"
         opt_cleanup=1
         ;;
     -n | --dry-run)
+        msg -debug "enabling dry-run"
         opt_dry=1
         ;;
     --rage)
+        msg -debug "using rage"
         AGE=rage
         ;;
     -d | --backup-dir)
@@ -68,4 +245,24 @@ while ((${#cli_opts})); do
     esac
 done
 
-set | grep '^BACKUP'
+auto_level
+
+case "$BACKUP_METHOD" in
+gnutar)
+    FTYPE=tar
+    ;;
+xfsdump)
+    FTYPE=dump
+    ;;
+*)
+    msg -error "unsupported method $BACKUP_METHOD"
+    exit 2
+    ;;
+esac
+
+if [[ -z $BACKUP_DIR ]]; then
+    msg -error "no backup directory specified"
+    exit 2
+fi
+
+BACKUPS=($(list_backups))
