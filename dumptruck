@@ -140,7 +140,7 @@ scan_backups() {
 
 # list the backup files
 list_backups() {
-    local name level date enc i etag
+    local name level date enc i etag size
     name=
     scan_backups -a
     pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
@@ -163,8 +163,26 @@ list_backups() {
         if [[$enc]]; then
             etag=" (%B%F{green}encrypted%f%b)"
         fi
-        print -P "%BL$level:%b %F{cyan}$date%f$etag"
+        size=$(_friendly_size "$BACKUP_DIR/$backup")
+        print -P "%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
     done
+}
+
+_friendly_size() {
+    local size sizes prefix
+    size=$(stat -c %s "$1")
+    if (($?)); then
+        return "$?"
+    fi
+    msg -debug "formatting $1 size $size"
+    sizes=(K M G T E)
+    prefix=
+    while (($size > 1024)); do
+        prefix="$sizes[1]iB"
+        shift sizes
+        size=$(($size / 1024.0))
+    done
+    printf "%.1f%s" "$size" "$prefix"
 }
 
 # clean up the backups according to expiration

@@ -45,6 +45,9 @@ when setting up backups in a _systemd_ service.
 :   Encrypt backups to the Age recipients listed in _FILE_.  Defaults to the file
     _recipients.txt_ in the backup directory.
 
+**--list**
+:   List backups instead of creating new backups.
+
 **-L, -\-level** _LEVEL_ (`$BACKUP_LEVEL`)
 :   Specify the backup level (0--9, but usually 0--2).  The default is automatically
     detected according to a backup schedule.
