@@ -105,16 +105,23 @@ configure_level() {
 
 # scan existing backups files into the BACKUPS array
 scan_backups() {
-    local name file level backups match
+    local name file level backups match search_name
     level=
+    if [[ $1 = -a ]]; then
+        msg -debug "searching for all $FTYPE backups"
+        search_name=".*?"
+        shift
+    else
+        msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
+        search_name="$BACKUP_NAME"
+    fi
     backups=()
-    msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
     if [[ $1 =~ -[[:digit:]] ]]; then
         level="${1#-}"
         msg -debug "limiting to level $level"
     fi
-    pcre_compile "^$BACKUP_NAME-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
-    for file in "$BACKUP_DIR/$BACKUP_NAME"-*; do
+    pcre_compile "^$search_name-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
+    for file in "$BACKUP_DIR"/*; do
         name="$(basename $file)"
         if pcre_match "$name"; then
             if [[ -z $level || $match[1] = $level ]]; then
@@ -135,7 +142,7 @@ scan_backups() {
 list_backups() {
     local name level date enc i etag
     name=
-    scan_backups
+    scan_backups -a
     pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
     for backup in "$BACKUPS[@]"; do
         if ! pcre_match "$backup"; then
