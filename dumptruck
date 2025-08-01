@@ -260,11 +260,14 @@ gnutar_prepare() {
         fi
     fi
 
-    cat >"$BACKUP_WORK/CACHEDIR.TAG" <<EOF
+    if ((!$opt_dry)); then
+        mkdir -p "$BACKUP_WORK"
+        cat >"$BACKUP_WORK/CACHEDIR.TAG" <<EOF
 Signature: 8a477f597d28d172789f06886806bc55
 # This is the working directory for dumptruck --listed-incremental files.
 # Its contents don't need to be backed up.
 EOF
+    fi
 }
 
 gnutar_backup() {
