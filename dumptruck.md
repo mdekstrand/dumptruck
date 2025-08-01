@@ -69,6 +69,10 @@ when setting up backups in a _systemd_ service.
 :   Persistent work directory for backup cache files (default: _/var/lib/dumptruck_).
     Currently only needed by the **tar** backend (to store the files needed by `--listed-incremental`).
 
+**-x, -\-one-file-system**
+:   Don't cross filesystem boundaries when backing up.  This option is only
+    respected by the _gnutar_ backend; _xfsdump_ is always limited to one FS.
+
 # REQUIREMENTS
 
 **dumptruck** requires the following software installed:

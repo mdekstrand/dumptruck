@@ -19,6 +19,7 @@ zmodload zsh/pcre
 opt_cleanup=0
 opt_dry=0
 opt_verbose=0
+opt_onefs=0
 action=default
 
 # working variables
@@ -269,7 +270,11 @@ EOF
 gnutar_backup() {
     local tar_cmd
     msg "creating gnutar backup at $BACKUP_FILE"
-    tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches "$@")
+    tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches)
+    if (($opt_onefs)); then
+        tar_cmd+='--one-file-system'
+    fi
+    tar_cmd+=("$@")
     msg -debug "backup command: $tar_cmd"
     if ((!$opt_dry)); then
         if ! "$tar_cmd[@]" | write_backup; then
@@ -385,7 +390,8 @@ zparseopts -D -E -F -a cli_opts - \
     L: -level: \
     m: -method: \
     N: -name: \
-    W: -work-dir:
+    W: -work-dir: \
+    x -one-file-system
 
 if (($?)); then
     exit 2
@@ -436,6 +442,9 @@ while ((${#cli_opts})); do
     -W | --work-dir)
         BACKUP_WORK="${cli_opts[1]}"
         shift cli_opts
+        ;;
+    -x | --one-file-system)
+        opt_onefs=1
         ;;
     esac
 done
