@@ -29,34 +29,36 @@ typeset -a BACKUPS
 typeset -a BACKUP_OUT
 typeset -a TEMP_FILES
 
+OS="$(uname)"
+
 #region Logging functions
 msg() {
-    local pfx="%BMSG:%b"
-    local sfx=""
-    case "$1" in
-    -dbg | -debug)
-        pfx="%F{cyan}DBG:"
-        sfx="%f"
-        if ((!$opt_verbose)); then
-            return
-        fi
-        shift
-        ;;
-    -info)
-        shift
-        ;;
-    -warn)
-        pfx="%B%F{yellow}WRN:"
-        sfx="%f%b"
-        shift
-        ;;
-    -err | -error)
-        pfx="%B%F{red}ERR:"
-        sfx="%f%b"
-        shift
-        ;;
-    esac
-    print -P "$pfx $*$sfx" >&2
+	local pfx="%BMSG:%b"
+	local sfx=""
+	case "$1" in
+	-dbg | -debug)
+		pfx="%F{cyan}DBG:"
+		sfx="%f"
+		if ((!$opt_verbose)); then
+			return
+		fi
+		shift
+		;;
+	-info)
+		shift
+		;;
+	-warn)
+		pfx="%B%F{yellow}WRN:"
+		sfx="%f%b"
+		shift
+		;;
+	-err | -error)
+		pfx="%B%F{red}ERR:"
+		sfx="%f%b"
+		shift
+		;;
+	esac
+	print -P "$pfx $*$sfx" >&2
 }
 #endregion
 
@@ -64,41 +66,41 @@ msg() {
 
 # Auto-detect level as needed
 configure_level() {
-    local DOM DOW match cl
-    DOM=$(print -P %D{%f})
-    DOW=$(print -P %D{%w})
-    if [[ -z "$BACKUP_LEVEL" ]]; then
-        msg -debug "auto-selecting backup level"
-        if [[ $DOM = 1 ]]; then
-            msg "first day of the month, requesting L0 backup"
-            BACKUP_LEVEL=0
-        elif [[ $DOW = 0 ]]; then
-            msg "first day of the week, requesting L1 backup"
-            BACKUP_LEVEL=1
-        else
-            msg "requesting L2 backup"
-            BACKUP_LEVEL=2
-        fi
-    else
-        msg "Level $BACKUP_LEVEL backup explicitly requested"
-    fi
+	local DOM DOW match cl
+	DOM=$(print -P %D{%f})
+	DOW=$(print -P %D{%w})
+	if [[ -z "$BACKUP_LEVEL" ]]; then
+		msg -debug "auto-selecting backup level"
+		if [[ $DOM = 1 ]]; then
+			msg "first day of the month, requesting L0 backup"
+			BACKUP_LEVEL=0
+		elif [[ $DOW = 0 ]]; then
+			msg "first day of the week, requesting L1 backup"
+			BACKUP_LEVEL=1
+		else
+			msg "requesting L2 backup"
+			BACKUP_LEVEL=2
+		fi
+	else
+		msg "Level $BACKUP_LEVEL backup explicitly requested"
+	fi
 
-    if ((${#BACKUPS} == 0)); then
-        msg "no backups exist, using L0"
-        BACKUP_LEVEL=0
-    elif (($BACKUP_LEVEL > 0)); then
-        pcre_compile "^$BACKUP_NAME-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
-        if pcre_match "$BACKUPS[-1]"; then
-            msg -debug "last backup level: $match[1]"
-            if (($BACKUP_LEVEL > "$match[1]" + 1)); then
-                cl="$BACKUP_LEVEL"
-                BACKUP_LEVEL=$(("$match[1]" + 1))
-                msg "last level is $match[1], adjusting level $cl -> $BACKUP_LEVEL"
-            fi
-        else
-            msg -warn "invalid backup name $BACKUPS[-1]"
-        fi
-    fi
+	if ((${#BACKUPS} == 0)); then
+		msg "no backups exist, using L0"
+		BACKUP_LEVEL=0
+	elif (($BACKUP_LEVEL > 0)); then
+		pcre_compile "^$BACKUP_NAME-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
+		if pcre_match "$BACKUPS[-1]"; then
+			msg -debug "last backup level: $match[1]"
+			if (($BACKUP_LEVEL > "$match[1]" + 1)); then
+				cl="$BACKUP_LEVEL"
+				BACKUP_LEVEL=$(("$match[1]" + 1))
+				msg "last level is $match[1], adjusting level $cl -> $BACKUP_LEVEL"
+			fi
+		else
+			msg -warn "invalid backup name $BACKUPS[-1]"
+		fi
+	fi
 }
 #endregion
 
@@ -106,192 +108,216 @@ configure_level() {
 
 # scan existing backups files into the BACKUPS array
 scan_backups() {
-    local name file level backups match search_name
-    level=
-    if [[ $1 = -a ]]; then
-        msg -debug "searching for all $FTYPE backups"
-        search_name=".*?"
-        shift
-    else
-        msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
-        search_name="$BACKUP_NAME"
-    fi
-    backups=()
-    if [[ $1 =~ -[[:digit:]] ]]; then
-        level="${1#-}"
-        msg -debug "limiting to level $level"
-    fi
-    pcre_compile "^$search_name-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
-    for file in "$BACKUP_DIR"/*; do
-        name="$(basename $file)"
-        if pcre_match "$name"; then
-            if [[ -z $level || $match[1] = $level ]]; then
-                msg -debug "found backup $name"
-                backups+="$name"
-            fi
-        else
-            msg -debug "file $name does not match backup pattern"
-        fi
-    done
+	local name file level backups match search_name
+	level=
+	if [[ $1 = -a ]]; then
+		msg -debug "searching for all $FTYPE backups"
+		search_name=".*?"
+		shift
+	else
+		msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
+		search_name="$BACKUP_NAME"
+	fi
+	backups=()
+	if [[ $1 =~ -[[:digit:]] ]]; then
+		level="${1#-}"
+		msg -debug "limiting to level $level"
+	fi
+	pcre_compile "^$search_name-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
+	for file in "$BACKUP_DIR"/*; do
+		name="$(basename $file)"
+		if pcre_match "$name"; then
+			if [[ -z $level || $match[1] = $level ]]; then
+				msg -debug "found backup $name"
+				backups+="$name"
+			fi
+		else
+			msg -debug "file $name does not match backup pattern"
+		fi
+	done
 
-    # sort the array
-    msg -debug "scanned ${#backups} backups"
-    set -sA BACKUPS "$backups[@]"
+	# sort the array
+	msg -debug "scanned ${#backups} backups"
+	set -sA BACKUPS "$backups[@]"
 }
 
 # list the backup files
 list_backups() {
-    local name level date enc i pad etag size
-    name=
-    scan_backups -a
-    pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
-    for backup in "$BACKUPS[@]"; do
-        if ! pcre_match "$backup"; then
-            msg -error "invalid backup file: $backup"
-            continue
-        fi
-        if [[ $match[1] != $name ]]; then
-            name="$match[1]"
-            print -P "%BBackups for %F{magenta}$name%f:%b"
-        fi
-        date="$match[2]"
-        level="$match[3]"
-        enc="$match[4]"
-        pad="  "
-        size=$(_friendly_size "$BACKUP_DIR/$backup")
-        for ((i = 0; i < $level; i++)); do
-            pad="$pad  "
-        done
-        etag=
-        if [[$enc]]; then
-            etag=" (%B%F{green}encrypted%f%b)"
-        fi
-        print -P "$pad%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
-    done
+	local name level date enc i pad etag size
+	name=
+	scan_backups -a
+	pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
+	for backup in "$BACKUPS[@]"; do
+		if ! pcre_match "$backup"; then
+			msg -error "invalid backup file: $backup"
+			continue
+		fi
+		if [[ $match[1] != $name ]]; then
+			name="$match[1]"
+			print -P "%BBackups for %F{magenta}$name%f:%b"
+		fi
+		date="$match[2]"
+		level="$match[3]"
+		enc="$match[4]"
+		pad="  "
+		size=$(_friendly_size "$BACKUP_DIR/$backup")
+		for ((i = 0; i < $level; i++)); do
+			pad="$pad  "
+		done
+		etag=
+		if [[$enc]]; then
+			etag=" (%B%F{green}encrypted%f%b)"
+		fi
+		print -P "$pad%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
+	done
 }
 
 _friendly_size() {
-    local size sizes prefix
-    size=$(stat -c %s "$1")
-    if (($?)); then
-        return "$?"
-    fi
-    msg -debug "formatting $1 size $size"
-    sizes=(K M G T E)
-    prefix=
-    while (($size > 1024)); do
-        prefix="$sizes[1]iB"
-        shift sizes
-        size=$(($size / 1024.0))
-    done
-    printf "%.1f%s" "$size" "$prefix"
+	local size sizes prefix
+	size=$(stat -c %s "$1")
+	if (($?)); then
+		return "$?"
+	fi
+	msg -debug "formatting $1 size $size"
+	sizes=(K M G T E)
+	prefix=
+	while (($size > 1024)); do
+		prefix="$sizes[1]iB"
+		shift sizes
+		size=$(($size / 1024.0))
+	done
+	printf "%.1f%s" "$size" "$prefix"
 }
 
 # clean up the backups according to expiration
 clean_backups() {
-    _prune_backups_for_level 2 10
-    _prune_backups_for_level 1 5
-    _prune_backups_for_level 0 12
+	_prune_backups_for_level 2 10
+	_prune_backups_for_level 1 5
+	_prune_backups_for_level 0 12
 }
 
 _prune_backups_for_level() {
-    local level="$1" count="$2" n file
-    scan_backups "-$level"
-    msg "found ${#BACKUPS} L$level backups, want to keep $count"
-    while ((${#BACKUPS} > $count)); do
-        file="$BACKUPS[1]"
-        shift BACKUPS
-        if (($opt_dry)); then
-            msg "would remove $file"
-        else
-            rm "$BACKUP_DIR/$file"
-        fi
-    done
+	local level="$1" count="$2" n file
+	scan_backups "-$level"
+	msg "found ${#BACKUPS} L$level backups, want to keep $count"
+	while ((${#BACKUPS} > $count)); do
+		file="$BACKUPS[1]"
+		shift BACKUPS
+		if (($opt_dry)); then
+			msg "would remove $file"
+		else
+			rm "$BACKUP_DIR/$file"
+		fi
+	done
 }
 
 #endregion
 
 #region GNUTAR backup method
 
-gnutar_init() {
-    local tar_version
-    if [[ -z $TAR ]]; then
-        msg -debug "looking for tar implementation"
-        if [[ -v commands[gtar] ]]; then
-            TAR=gtar
-        else
-            TAR=tar
-        fi
-    fi
-    msg -debug "checking if $TAR is GNU"
-    tar_version="$($TAR --version | head -1)"
-    msg -debug "$TAR is $tar_version"
-    if [[ $tar_version =~ "GNU tar" ]]; then
-        msg -debug "$TAR is ok"
-    else
-        msg -error "$TAR does not appear to be GNU tar"
-        exit 3
-    fi
+_fs_type() {
+	if [[ $OS = Linux ]]; then
+		stat -f -c %T "$1"
+	else
+		echo "unknown"
+	fi
+}
 
-    msg -debug "gnutar ready to go"
+gnutar_init() {
+	local tar_version
+	if [[ -z $TAR ]]; then
+		msg -debug "looking for tar implementation"
+		if [[ -v commands[gtar] ]]; then
+			TAR=gtar
+		else
+			TAR=tar
+		fi
+	fi
+	msg -debug "checking if $TAR is GNU"
+	tar_version="$($TAR --version | head -1)"
+	msg -debug "$TAR is $tar_version"
+	if [[ $tar_version =~ "GNU tar" ]]; then
+		msg -debug "$TAR is ok"
+	else
+		msg -error "$TAR does not appear to be GNU tar"
+		exit 3
+	fi
+
+	msg -debug "gnutar ready to go"
 }
 
 gnutar_prepare() {
-    local prev_snar prev_level ec
-    GT_SNAR="$BACKUP_NAME.L$BACKUP_LEVEL.snar"
-    msg -debug "preparing for level $BACKUP_LEVEL gnutar backup"
-    if (($BACKUP_LEVEL > 0)); then
-        prev_level=$((BACKUP_LEVEL - 1))
-        msg -debug "looking for $prev_level incremental list"
-        prev_snar="$BACKUP_NAME.L$prev_level.snar"
-        if [[ -f "$BACKUP_WORK/$prev_snar" ]]; then
-            msg "L$prev_level backup modified at $(stat -c %y "$BACKUP_WORK/$prev_snar")"
-            if ((!$opt_dry)); then
-                TEMP_FILES+="$BACKUP_WORK/$GT_SNAR.tmp"
-                cp "$BACKUP_WORK/$prev_snar" "$BACKUP_WORK/$GT_SNAR.tmp"
-            fi
-        else
-            msg -warn "$prev_snar does not exist, re-requesting L$prev_level backup"
-            BACKUP_LEVEL=$prev_level
-            gnutar_prepare
-            ec="$?"
-            setup_output
-            return "$ec"
-        fi
-    fi
+	local prev_snar prev_level ec
+	GT_SNAR="$BACKUP_NAME.L$BACKUP_LEVEL.snar"
+	msg -debug "preparing for level $BACKUP_LEVEL gnutar backup"
+	if (($BACKUP_LEVEL > 0)); then
+		prev_level=$((BACKUP_LEVEL - 1))
+		msg -debug "looking for $prev_level incremental list"
+		prev_snar="$BACKUP_NAME.L$prev_level.snar"
+		if [[ -f "$BACKUP_WORK/$prev_snar" ]]; then
+			msg "L$prev_level backup modified at $(stat -c %y "$BACKUP_WORK/$prev_snar")"
+			if ((!$opt_dry)); then
+				TEMP_FILES+="$BACKUP_WORK/$GT_SNAR.tmp"
+				cp "$BACKUP_WORK/$prev_snar" "$BACKUP_WORK/$GT_SNAR.tmp"
+			fi
+		else
+			msg -warn "$prev_snar does not exist, re-requesting L$prev_level backup"
+			BACKUP_LEVEL=$prev_level
+			gnutar_prepare
+			ec="$?"
+			setup_output
+			return "$ec"
+		fi
+	fi
 
-    if ((!$opt_dry)); then
-        mkdir -p "$BACKUP_WORK"
-        cat >"$BACKUP_WORK/CACHEDIR.TAG" <<EOF
+	if ((!$opt_dry)); then
+		mkdir -p "$BACKUP_WORK"
+		cat >"$BACKUP_WORK/CACHEDIR.TAG" <<EOF
 Signature: 8a477f597d28d172789f06886806bc55
 # This is the working directory for dumptruck --listed-incremental files.
 # Its contents don't need to be backed up.
 EOF
-    fi
+	fi
 }
 
 gnutar_backup() {
-    local tar_cmd
-    msg "creating gnutar backup at $BACKUP_FILE"
-    tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches)
-    if (($opt_onefs)); then
-        tar_cmd+='--one-file-system'
-    fi
-    tar_cmd+=("$@")
-    msg -debug "backup command: $tar_cmd"
-    if ((!$opt_dry)); then
-        if ! "$tar_cmd[@]" | write_backup; then
-            msg -error "failed to write backup"
-            exit 4
-        fi
-    fi
+	local tar_cmd fs fixed_fs=0
+	msg "creating gnutar backup at $BACKUP_FILE"
+	tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches)
+	if (($opt_onefs)); then
+		tar_cmd+='--one-file-system'
+	fi
+	for tgt in "$@"; do
+		fs="$(_fs_type "$1")"
+		msg -debug "checking fs $fs"
+		case "$fs" in
+		zfs)
+			if ((!$fixed_fs)); then
+				msg "file system $fs does not support device checks, disabling"
+				if ((!$opt_onefs)); then
+					msg -warn "disabling device checks on multiple filesystems may corrupt backups"
+				fi
+				tar_cmd+='--no-check-device'
+				fixed_fs=1
+			fi
+			;;
+		esac
+	done
+	tar_cmd+=("$@")
+	msg -debug "backup command: $tar_cmd"
+	if ((!$opt_dry)); then
+		if ! "$tar_cmd[@]" | write_backup; then
+			msg -error "failed to write backup"
+			exit 4
+		fi
+	fi
 }
 
 gnutar_save() {
-    if ((!$opt_dry)); then
-        msg -debug "moving temporary $BACKUP_WORK/$GT_SNAR.tmp"
-        mv "$BACKUP_WORK/$GT_SNAR.tmp" "$BACKUP_WORK/$GT_SNAR" || exit 2
-    fi
+	if ((!$opt_dry)); then
+		msg -debug "moving temporary $BACKUP_WORK/$GT_SNAR.tmp"
+		mv "$BACKUP_WORK/$GT_SNAR.tmp" "$BACKUP_WORK/$GT_SNAR" || exit 2
+	fi
 }
 
 #endregion
@@ -299,33 +325,33 @@ gnutar_save() {
 #region XFSDUMP backup method
 
 xfsdump_init() {
-    if [[ ! -v commands[xfsdump] ]]; then
-        msg -error "xfsdump not found"
-        exit 3
-    fi
+	if [[ ! -v commands[xfsdump] ]]; then
+		msg -error "xfsdump not found"
+		exit 3
+	fi
 
-    msg -debug "xfsdump ready to go"
+	msg -debug "xfsdump ready to go"
 }
 
 xfsdump_prepare() {
-    # xfsdump requies no preparation
+	# xfsdump requies no preparation
 }
 
 xfsdump_backup() {
-    if (($# > 1)); then
-        msg -error "XFS can only back up single paths"
-        exit 3
-    fi
-    if ((!$opt_dry)); then
-        if ! xfsdump -L "dumptruck-$BACKUP_NAME" -l "$BACKUP_LEVEL" -e - "$1" | write_backup; then
-            msg -error "backup failed"
-            exit 4
-        fi
-    fi
+	if (($# > 1)); then
+		msg -error "XFS can only back up single paths"
+		exit 3
+	fi
+	if ((!$opt_dry)); then
+		if ! xfsdump -L "dumptruck-$BACKUP_NAME" -l "$BACKUP_LEVEL" -e - "$1" | write_backup; then
+			msg -error "backup failed"
+			exit 4
+		fi
+	fi
 }
 
 xfsdump_save() {
-    # xfsdump has no post-save action
+	# xfsdump has no post-save action
 }
 
 #endregion
@@ -333,147 +359,152 @@ xfsdump_save() {
 #region Output management
 
 _cleanup() {
-    local file
-    msg -debug "cleaning up temp files"
-    for file in "$TEMP_FILES[@]"; do
-        if [[ -f "$file" ]]; then
-            msg -warn "$file exists, deleting"
-        fi
-    done
+	local file
+	msg -debug "cleaning up temp files"
+	for file in "$TEMP_FILES[@]"; do
+		if [[ -f "$file" ]]; then
+			msg -warn "$file exists, deleting"
+			rm "$file"
+		fi
+	done
 }
 
 setup_output() {
-    print -v BACKUP_FILE -P "$BACKUP_NAME-%D{%Y-%m-%d-%H:%M:%S}.L${BACKUP_LEVEL}.${FTYPE}.zst"
-    if [[ -z $RECIPIENT_FILE && -f "$BACKUP_DIR/recipients.txt" ]]; then
-        RECIPIENT_FILE="$BACKUP_DIR/recipients.txt"
-    fi
-    if [[ $RECIPIENT_FILE ]]; then
-        BACKUP_FILE="${BACKUP_FILE}.age"
-    fi
-    msg "want to back up to $BACKUP_FILE"
-    BACKUP_TMP="$BACKUP_DIR/$BACKUP_FILE.tmp"
-    TEMP_FILES+="$BACKUP_TMP"
+	print -v BACKUP_FILE -P "$BACKUP_NAME-%D{%Y-%m-%d-%H:%M:%S}.L${BACKUP_LEVEL}.${FTYPE}.zst"
+	if [[ -z $RECIPIENT_FILE && -f "$BACKUP_DIR/recipients.txt" ]]; then
+		RECIPIENT_FILE="$BACKUP_DIR/recipients.txt"
+	fi
+	if [[ $RECIPIENT_FILE ]]; then
+		BACKUP_FILE="${BACKUP_FILE}.age"
+	fi
+	msg "want to back up to $BACKUP_FILE"
+	BACKUP_TMP="$BACKUP_DIR/$BACKUP_FILE.tmp"
+	TEMP_FILES+="$BACKUP_TMP"
 }
 
 # write the backup to a temporary file, possibly encrypted
 write_backup() {
-    if [[ $RECIPIENT_FILE ]]; then
-        msg "compressing and encrypting output"
-        zstd -6 --no-progress | age -e -R "$RECIPIENT_FILE" -o "$BACKUP_TMP"
-        return "$?"
-    else
-        msg "compressing output"
-        zstd -6 --no-progress -o "$BACKUP_TMP"
-        return "$?"
-    fi
+	if [[ $RECIPIENT_FILE ]]; then
+		msg "compressing and encrypting output"
+		zstd -6 --no-progress | age -e -R "$RECIPIENT_FILE" -o "$BACKUP_TMP"
+		return "$?"
+	else
+		msg "compressing output"
+		zstd -6 --no-progress -o "$BACKUP_TMP"
+		return "$?"
+	fi
 }
 
 # move the backup temp into real
 commit_backup() {
-    msg -debug "committing backup"
-    if ((!$opt_dry)); then
-        msg -debug "moving temporary file $BACKUP_TMP"
-        if ! mv "$BACKUP_TMP" "$BACKUP_DIR/$BACKUP_FILE"; then
-            msg -error "failed to move $BACKUP_FILE.tmp to $BACKUP_FILE"
-            exit 5
-        else
-            msg "%F{green}$BACKUP_FILE successfully created%f"
-        fi
-    fi
-    ${BACKUP_METHOD}_save
+	msg -debug "committing backup"
+	if ((!$opt_dry)); then
+		msg -debug "moving temporary file $BACKUP_TMP"
+		if ! mv "$BACKUP_TMP" "$BACKUP_DIR/$BACKUP_FILE"; then
+			msg -error "failed to move $BACKUP_FILE.tmp to $BACKUP_FILE"
+			exit 5
+		else
+			msg "%F{green}$BACKUP_FILE successfully created%f"
+		fi
+	fi
+	${BACKUP_METHOD}_save
 }
 
 #endregion
 
 #region Command-line argument parsing
 zparseopts -D -E -F -a cli_opts - \
-    c -cleanup n -dry-run v --verbose -rage -list \
-    d: -backup-dir: \
-    E: -encrypt-to: \
-    L: -level: \
-    m: -method: \
-    N: -name: \
-    W: -work-dir: \
-    x -one-file-system
+	c -cleanup n -dry-run v --verbose -rage -list \
+	d: -backup-dir: \
+	E: -encrypt-to: \
+	L: -level: \
+	m: -method: \
+	N: -name: \
+	W: -work-dir: \
+	x -one-file-system
 
 if (($?)); then
-    exit 2
+	exit 2
 fi
 while ((${#cli_opts})); do
-    flag="${cli_opts[1]}"
-    shift cli_opts
-    case "$flag" in
-    -v | --verbose)
-        opt_verbose=1
-        ;;
-    -c | --cleanup)
-        msg -debug "enabling cleanup"
-        opt_cleanup=1
-        ;;
-    -n | --dry-run)
-        msg -debug "enabling dry-run"
-        opt_dry=1
-        ;;
-    --list)
-        msg -debug "listing backups"
-        action=list
-        ;;
-    --rage)
-        msg -debug "using rage"
-        AGE=rage
-        ;;
-    -d | --backup-dir)
-        BACKUP_DIR="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -E | --encrypt-to)
-        RECIPIENT_FILE="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -L | --level)
-        BACKUP_LEVEL="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -m | --method)
-        BACKUP_METHOD="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -N | --name)
-        BACKUP_NAME="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -W | --work-dir)
-        BACKUP_WORK="${cli_opts[1]}"
-        shift cli_opts
-        ;;
-    -x | --one-file-system)
-        opt_onefs=1
-        ;;
-    esac
+	flag="${cli_opts[1]}"
+	shift cli_opts
+	case "$flag" in
+	-v | --verbose)
+		opt_verbose=1
+		;;
+	-c | --cleanup)
+		msg -debug "enabling cleanup"
+		opt_cleanup=1
+		;;
+	-n | --dry-run)
+		msg -debug "enabling dry-run"
+		opt_dry=1
+		;;
+	--list)
+		msg -debug "listing backups"
+		action=list
+		;;
+	--rage)
+		msg -debug "using rage"
+		AGE=rage
+		;;
+	-d | --backup-dir)
+		BACKUP_DIR="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-E | --encrypt-to)
+		RECIPIENT_FILE="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-L | --level)
+		BACKUP_LEVEL="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-m | --method)
+		BACKUP_METHOD="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-N | --name)
+		BACKUP_NAME="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-W | --work-dir)
+		BACKUP_WORK="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-x | --one-file-system)
+		opt_onefs=1
+		;;
+	esac
 done
 
 case "$BACKUP_METHOD" in
 gnutar)
-    FTYPE=tar
-    ;;
+	FTYPE=tar
+	;;
 xfsdump)
-    FTYPE=dump
-    ;;
+	FTYPE=dump
+	;;
 *)
-    msg -error "unsupported method $BACKUP_METHOD"
-    exit 2
-    ;;
+	msg -error "unsupported method $BACKUP_METHOD"
+	exit 2
+	;;
 esac
 
 if [[ -z $BACKUP_DIR ]]; then
-    msg -error "no backup directory specified"
-    exit 2
+	msg -error "no backup directory specified"
+	exit 2
 fi
 #endregion
 
+if [[ $OS != Linux ]]; then
+	msg -warn "Operating system $OS not tested, some features may not work"
+fi
+
 if [[ $action = list ]]; then
-    list_backups
-    exit
+	list_backups
+	exit
 fi
 
 scan_backups
@@ -482,16 +513,16 @@ configure_level
 trap _cleanup EXIT TERM INT
 
 if (($#)); then
-    msg "want to back up $# paths"
-    setup_output
-    ${BACKUP_METHOD}_init
-    ${BACKUP_METHOD}_prepare
-    ${BACKUP_METHOD}_backup "$@"
-    commit_backup
+	msg "want to back up $# paths"
+	setup_output
+	${BACKUP_METHOD}_init
+	${BACKUP_METHOD}_prepare
+	${BACKUP_METHOD}_backup "$@"
+	commit_backup
 else
-    msg "no paths selected for backup"
+	msg "no paths selected for backup"
 fi
 
 if (($opt_cleanup)); then
-    clean_backups
+	clean_backups
 fi
