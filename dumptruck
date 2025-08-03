@@ -6,6 +6,7 @@ setopt NULL_GLOB
 zmodload zsh/zutil
 zmodload zsh/pcre
 zmodload zsh/stat
+zmodload zsh/datetime
 
 ######
 # Initialize environment variables to their defaults
@@ -14,6 +15,7 @@ zmodload zsh/stat
 : "${BACKUP_NAME:=backup}"
 # BACKUP_LEVEL (auto-detected)
 # BACKUP_DIR (required)
+: "${BACKUP_SCHEDULE:=monthly}"
 : "${BACKUP_WORK:=/var/lib/dumptruck}"
 # RECIPIENT_FILE (auto)
 # TAR (auto-detected)
@@ -67,20 +69,12 @@ msg() {
 
 # Auto-detect level as needed
 configure_level() {
-	local DOM DOW match cl
-	DOM=$(print -P %D{%f})
-	DOW=$(print -P %D{%w})
+	local match cl
 	if [[ -z "$BACKUP_LEVEL" ]]; then
-		msg -debug "auto-selecting backup level"
-		if [[ $DOM = 1 ]]; then
-			msg "first day of the month, requesting L0 backup"
-			BACKUP_LEVEL=0
-		elif [[ $DOW = 0 ]]; then
-			msg "first day of the week, requesting L1 backup"
-			BACKUP_LEVEL=1
-		else
-			msg "requesting L2 backup"
-			BACKUP_LEVEL=2
+		schedule_${BACKUP_SCHEDULE}_level
+		if (($?)); then
+			msg -error "$BACKUP_SCHEDULE level failed"
+			exit 100
 		fi
 	else
 		msg "Level $BACKUP_LEVEL backup explicitly requested"
@@ -103,6 +97,114 @@ configure_level() {
 		fi
 	fi
 }
+#endregion
+
+#region Log schedules
+
+schedule_monthly_level() {
+	local match now today c_yr c_month c_dom c_dow
+	local last= ltime= l_yr l_month l_dom l_dow
+	now="$epochtime[1]"
+	scan_backups
+	pcre_compile '^.*?-(\d+-\d+-\d+)(-\d+:\d+:\d+)?'
+	if ((${#BACKUPS})) && pcre_match "$BACKUPS[-1]"; then
+		if [[ $match[2] ]]; then
+			last="$match[1]$match[2]"
+			strftime -r -s ltime "%Y-%m-%d-%H:%M:%S" "$last"
+		else
+			last="$match[1]"
+			strftime -r -s ltime "%Y-%m-%d" "$last"
+		fi
+		msg -debug "last backup on $last ($ltime)"
+	fi
+
+	msg -debug "current time is $now"
+	strftime -s today "%Y-%m-%d" "$now" || exit 50
+	strftime -s c_yr %Y "$now" || exit 50
+	strftime -s c_dom %f "$now" || exit 50
+	strftime -s c_dow %w "$now" || exit 50
+	strftime -s l_yr %Y "$ltime" || exit 50
+	strftime -s l_dom %f "$ltime" || exit 50
+	strftime -s l_dow %w "$ltime" || exit 50
+
+	msg "selecting backup level by monthly schedule"
+
+	if [[ $today = $(strftime "%Y-%m-%d" "$ltime") ]]; then
+		msg "second backup of the day, requesting L3"
+		BACKUP_LEVEL=3
+	elif [[ $last != "$(strftime %Y-%m $now)"-* ]]; then
+		msg "new month, requesting L0 backup"
+		BACKUP_LEVEL=0
+	elif [[ $c_down != $l_dow ]]; then
+		msg "new week, requesting L1 backup"
+		BACKUP_LEVEL=1
+	else
+		msg "new day, requesting L2 backup"
+		BACKUP_LEVEL=2
+	fi
+}
+
+schedule_monthly_prune() {
+	_prune_backups_for_level 3 12
+	_prune_backups_for_level 2 10
+	_prune_backups_for_level 1 5
+	_prune_backups_for_level 0 12
+}
+
+schedule_yearly_level() {
+	local match now today c_yr c_month c_dom c_dow
+	local last= ltime= l_yr l_month l_dom l_dow
+	now="$epochtime[1]"
+	scan_backups
+	pcre_compile '^.*?-(\d+-\d+-\d+)(-\d+:\d+:\d+)?'
+	if ((${#BACKUPS})) && pcre_match "$BACKUPS[-1]"; then
+		if [[ $match[2] ]]; then
+			last="$match[1]$match[2]"
+			strftime -r -s ltime "%Y-%m-%d-%H:%M:%S" "$last"
+		else
+			last="$match[1]"
+			strftime -r -s ltime "%Y-%m-%d" "$last"
+		fi
+		msg -debug "last backup on $last ($ltime)"
+	fi
+
+	msg -debug "current time is $now"
+	strftime -s today "%Y-%m-%d" "$now" || exit 50
+	strftime -s c_yr %Y "$now" || exit 50
+	strftime -s c_dom %f "$now" || exit 50
+	strftime -s c_dow %w "$now" || exit 50
+	strftime -s l_yr %Y "$ltime" || exit 50
+	strftime -s l_dom %f "$ltime" || exit 50
+	strftime -s l_dow %w "$ltime" || exit 50
+
+	msg "selecting backup level by yearly schedule"
+
+	if [[ $today = $(strftime "%Y-%m-%d" "$ltime") ]]; then
+		msg "second backup of the day, requesting L4"
+		BACKUP_LEVEL=4
+	elif [[ $last != "$(strftime %Y $now)"-* ]]; then
+		msg "new year, requesting L0 backup"
+		BACKUP_LEVEL=0
+	elif [[ $last != "$(strftime %Y-%m $now)"-* ]]; then
+		msg "new month, requesting L1 backup"
+		BACKUP_LEVEL=1
+	elif [[ $c_down != $l_dow ]]; then
+		msg "new week, requesting L2 backup"
+		BACKUP_LEVEL=2
+	else
+		msg "new day, requesting L3 backup"
+		BACKUP_LEVEL=3
+	fi
+}
+
+schedule_yearly_prune() {
+	_prune_backups_for_level 4 12
+	_prune_backups_for_level 3 10
+	_prune_backups_for_level 2 5
+	_prune_backups_for_level 1 14
+	_prune_backups_for_level 0 5
+}
+
 #endregion
 
 #region Backup file management
@@ -193,9 +295,7 @@ _friendly_size() {
 
 # clean up the backups according to expiration
 clean_backups() {
-	_prune_backups_for_level 2 10
-	_prune_backups_for_level 1 5
-	_prune_backups_for_level 0 12
+	schedule_${BACKUP_SCHEDULE}_prune
 }
 
 _prune_backups_for_level() {
@@ -421,6 +521,7 @@ zparseopts -D -E -F -a cli_opts - \
 	c -cleanup n -dry-run v --verbose -rage -list \
 	d: -backup-dir: \
 	E: -encrypt-to: \
+	S: -backup-schedule: \
 	L: -level: \
 	m: -method: \
 	N: -name: \
@@ -455,6 +556,10 @@ while ((${#cli_opts})); do
 		;;
 	-d | --backup-dir)
 		BACKUP_DIR="${cli_opts[1]}"
+		shift cli_opts
+		;;
+	-S | --backup-schedule)
+		BACKUP_SCHEDULE="${cli_opts[1]}"
 		shift cli_opts
 		;;
 	-E | --encrypt-to)

@@ -65,6 +65,9 @@ when setting up backups in a _systemd_ service.
 :   Encrypt with _rage_(1) instead of _age_(1).  Support for _rage_ can also be
     invoked by setting the environment variable `AGE=rage`.
 
+**-S, -\-backup-schedule** _NAME_
+:   Use the backup schedule named _NAME_.
+
 **-W, -\-work-dir** _DIR_ (`$BACKUP_WORK`)
 :   Persistent work directory for backup cache files (default: _/var/lib/dumptruck_).
     Currently only needed by the **tar** backend (to store the files needed by `--listed-incremental`).
@@ -72,6 +75,34 @@ when setting up backups in a _systemd_ service.
 **-x, -\-one-file-system**
 :   Don't cross filesystem boundaries when backing up.  This option is only
     respected by the _gnutar_ backend; _xfsdump_ is always limited to one FS.
+
+# SCHEDULES
+
+`dumptruck` has two builtin backup schedules for level selection and backup
+pruning.
+
+## Monthly
+
+The monthly backup schedule (the default) is based on monthly full backups.
+
+| Level | Frequency | Retain |
+| :---: | :-------: | :----: |
+| 0     | monthly   | 12     |
+| 1     | weekly    | 5      |
+| 2     | daily     | 10     |
+| 3     |           | 12     |
+
+## Yearly
+
+The yearly backup schedule is based on yearly full backups.
+
+| Level | Frequency | Retain |
+| :---: | :-------: | :----: |
+| 0     | yearly    | 5      |
+| 1     | monthly   | 12     |
+| 2     | weekly    | 5      |
+| 3     | daily     | 10     |
+| 4     |           | 12     |
 
 # REQUIREMENTS
 
