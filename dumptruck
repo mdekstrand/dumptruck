@@ -5,6 +5,7 @@ setopt NULL_GLOB
 
 zmodload zsh/zutil
 zmodload zsh/pcre
+zmodload zsh/stat
 
 ######
 # Initialize environment variables to their defaults
@@ -173,11 +174,12 @@ list_backups() {
 }
 
 _friendly_size() {
-	local size sizes prefix
-	size=$(stat -c %s "$1")
+	local size sizes prefix stat
+	zstat -H stat "$1"
 	if (($?)); then
 		return "$?"
 	fi
+	size="$stat[size]"
 	msg -debug "formatting $1 size $size"
 	sizes=(K M G T E)
 	prefix=
@@ -217,7 +219,8 @@ _prune_backups_for_level() {
 
 _fs_type() {
 	if [[ $OS = Linux ]]; then
-		stat -f -c %T "$1"
+		# use stat binary, zstat doesn't give FS type
+		command stat -f -c %T "$1"
 	else
 		echo "unknown"
 	fi
@@ -247,15 +250,16 @@ gnutar_init() {
 }
 
 gnutar_prepare() {
-	local prev_snar prev_level ec
+	local prev_snar prev_level ec snstat
 	GT_SNAR="$BACKUP_NAME.L$BACKUP_LEVEL.snar"
 	msg -debug "preparing for level $BACKUP_LEVEL gnutar backup"
 	if (($BACKUP_LEVEL > 0)); then
 		prev_level=$((BACKUP_LEVEL - 1))
 		msg -debug "looking for $prev_level incremental list"
 		prev_snar="$BACKUP_NAME.L$prev_level.snar"
-		if [[ -f "$BACKUP_WORK/$prev_snar" ]]; then
-			msg "L$prev_level backup modified at $(stat -c %y "$BACKUP_WORK/$prev_snar")"
+		zstat -H snstat -F "%+" "$BACKUP_WORK/$prev_snar"
+		if (($? == 0)); then
+			msg "L$prev_level backup modified at $snstat[mtime]"
 			if ((!$opt_dry)); then
 				TEMP_FILES+="$BACKUP_WORK/$GT_SNAR.tmp"
 				cp "$BACKUP_WORK/$prev_snar" "$BACKUP_WORK/$GT_SNAR.tmp"
@@ -497,10 +501,6 @@ if [[ -z $BACKUP_DIR ]]; then
 	exit 2
 fi
 #endregion
-
-if [[ $OS != Linux ]]; then
-	msg -warn "Operating system $OS not tested, some features may not work"
-fi
 
 if [[ $action = list ]]; then
 	list_backups
