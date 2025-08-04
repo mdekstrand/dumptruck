@@ -211,22 +211,24 @@ schedule_yearly_prune() {
 
 # scan existing backups files into the BACKUPS array
 scan_backups() {
-	local name file level backups match search_name
+	local name file level backups match search_name search_type
 	level=
 	if [[ $1 = -a ]]; then
 		msg -debug "searching for all $FTYPE backups"
-		search_name=".*?"
+		search_name=".+?"
+		search_type="\w+"
 		shift
 	else
 		msg -debug "scanning for $FTYPE backups named $BACKUP_NAME"
 		search_name="$BACKUP_NAME"
+		search_type="$FTYPE"
 	fi
 	backups=()
 	if [[ $1 =~ -[[:digit:]] ]]; then
 		level="${1#-}"
 		msg -debug "limiting to level $level"
 	fi
-	pcre_compile "^$search_name-[\d:-]+\.L(\d)\.$FTYPE\.zst(?:\.age)?$" || exit 100
+	pcre_compile "^$search_name-[\d:-]+\.L(\d)\.$search_type\.zst(?:\.age)?$" || exit 100
 	for file in "$BACKUP_DIR"/*; do
 		name="$(basename $file)"
 		if pcre_match "$name"; then
@@ -246,10 +248,11 @@ scan_backups() {
 
 # list the backup files
 list_backups() {
-	local name level date enc i pad etag size
+	local name level date enc method i pad etag size
 	name=
 	scan_backups -a
-	pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.$FTYPE\.zst(\.age)?$" || exit 100
+	msg -debug "listing ${#BACKUPS} backups"
+	pcre_compile "^(.*?)-([\d:-]+)\.L(\d)\.(\w+)\.zst(\.age)?$" || exit 100
 	for backup in "$BACKUPS[@]"; do
 		if ! pcre_match "$backup"; then
 			msg -error "invalid backup file: $backup"
@@ -261,7 +264,8 @@ list_backups() {
 		fi
 		date="$match[2]"
 		level="$match[3]"
-		enc="$match[4]"
+		method="$match[4]"
+		enc="$match[5]"
 		pad="  "
 		size=$(_friendly_size "$BACKUP_DIR/$backup")
 		for ((i = 0; i < $level; i++)); do
@@ -269,9 +273,9 @@ list_backups() {
 		done
 		etag=
 		if [[$enc]]; then
-			etag=" (%B%F{green}encrypted%f%b)"
+			etag=", %B%F{green}encrypted%f%b"
 		fi
-		print -P "$pad%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f$etag"
+		print -P "$pad%BL$level:%b %F{yellow}$size%f %F{cyan}$date%f (%F{blue}$method%f$etag)"
 	done
 }
 
