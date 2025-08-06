@@ -185,6 +185,7 @@ _parse_time() {
 		msg -error "invalid time $time"
 		exit 2
 	fi
+
 	msg -debug "extracting from time $time"
 	echo unix $time
 	strftime "date %F" "$time"
