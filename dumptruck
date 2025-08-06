@@ -1,12 +1,13 @@
 #!/usr/bin/env zsh
 
-setopt PIPE_FAIL
-setopt NULL_GLOB
-
 zmodload zsh/zutil
 zmodload zsh/pcre
 zmodload zsh/stat
 zmodload zsh/datetime
+
+setopt PIPE_FAIL
+setopt NULL_GLOB
+setopt REMATCH_PCRE
 
 ######
 # Initialize environment variables to their defaults
@@ -32,7 +33,13 @@ typeset -a BACKUPS
 typeset -a BACKUP_OUT
 typeset -a TEMP_FILES
 
+# environment times
 OS="$(uname)"
+if [[ $_DT_BACKUP_TIME ]]; then
+	BACKUP_TIME="$_DT_BACKUP_TIME"
+else
+	BACKUP_TIME="$epochtime[1]"
+fi
 
 #region Logging functions
 msg() {
@@ -102,40 +109,18 @@ configure_level() {
 #region Log schedules
 
 schedule_monthly_level() {
-	local match now today c_yr c_month c_dom c_dow
-	local last= ltime= l_yr l_month l_dom l_dow
-	now="$epochtime[1]"
-	scan_backups
-	pcre_compile '^.*?-(\d+-\d+-\d+)(-\d+:\d+:\d+)?'
-	if ((${#BACKUPS})) && pcre_match "$BACKUPS[-1]"; then
-		if [[ $match[2] ]]; then
-			last="$match[1]$match[2]"
-			strftime -r -s ltime "%Y-%m-%d-%H:%M:%S" "$last"
-		else
-			last="$match[1]"
-			strftime -r -s ltime "%Y-%m-%d" "$last"
-		fi
-		msg -debug "last backup on $last ($ltime)"
-	fi
+	local ltime=$(_last_backup_time)
+	typeset -A last=($(_parse_time "$ltime"))
 
-	msg -debug "current time is $now"
-	strftime -s today "%Y-%m-%d" "$now" || exit 50
-	strftime -s c_yr %Y "$now" || exit 50
-	strftime -s c_dom %f "$now" || exit 50
-	strftime -s c_dow %w "$now" || exit 50
-	strftime -s l_yr %Y "$ltime" || exit 50
-	strftime -s l_dom %f "$ltime" || exit 50
-	strftime -s l_dow %w "$ltime" || exit 50
+	msg "selecting backup level by monthly schedule (last backup: $last[iso])"
 
-	msg "selecting backup level by monthly schedule"
-
-	if [[ $today = $(strftime "%Y-%m-%d" "$ltime") ]]; then
+	if [[ $NOW[date] = $last[date] ]]; then
 		msg "second backup of the day, requesting L3"
 		BACKUP_LEVEL=3
-	elif [[ $last != "$(strftime %Y-%m $now)"-* ]]; then
+	elif [[ "$last[year]-$last[month]" != "$NOW[year]-$NOW[month]" ]]; then
 		msg "new month, requesting L0 backup"
 		BACKUP_LEVEL=0
-	elif [[ $c_down != $l_dow ]]; then
+	elif [[ "$last[year]-$last[week]" != "$NOW[year]-$NOW[week]" ]]; then
 		msg "new week, requesting L1 backup"
 		BACKUP_LEVEL=1
 	else
@@ -152,43 +137,18 @@ schedule_monthly_prune() {
 }
 
 schedule_yearly_level() {
-	local match now today c_yr c_month c_dom c_dow
-	local last= ltime= l_yr l_month l_dom l_dow
-	now="$epochtime[1]"
-	scan_backups
-	pcre_compile '^.*?-(\d+-\d+-\d+)(-\d+:\d+:\d+)?'
-	if ((${#BACKUPS})) && pcre_match "$BACKUPS[-1]"; then
-		if [[ $match[2] ]]; then
-			last="$match[1]$match[2]"
-			strftime -r -s ltime "%Y-%m-%d-%H:%M:%S" "$last"
-		else
-			last="$match[1]"
-			strftime -r -s ltime "%Y-%m-%d" "$last"
-		fi
-		msg -debug "last backup on $last ($ltime)"
-	fi
+	local ltime=$(_last_backup_time)
+	typeset -A last=($(_parse_time "$ltime"))
 
-	msg -debug "current time is $now"
-	strftime -s today "%Y-%m-%d" "$now" || exit 50
-	strftime -s c_yr %Y "$now" || exit 50
-	strftime -s c_dom %f "$now" || exit 50
-	strftime -s c_dow %w "$now" || exit 50
-	strftime -s l_yr %Y "$ltime" || exit 50
-	strftime -s l_dom %f "$ltime" || exit 50
-	strftime -s l_dow %w "$ltime" || exit 50
+	msg "selecting backup level by yearly schedule (last backup: $last[iso])"
 
-	msg "selecting backup level by yearly schedule"
-
-	if [[ $today = $(strftime "%Y-%m-%d" "$ltime") ]]; then
+	if [[ $NOW[date] = $last[date] ]]; then
 		msg "second backup of the day, requesting L4"
 		BACKUP_LEVEL=4
-	elif [[ $last != "$(strftime %Y $now)"-* ]]; then
-		msg "new year, requesting L0 backup"
-		BACKUP_LEVEL=0
-	elif [[ $last != "$(strftime %Y-%m $now)"-* ]]; then
+	elif [[ "$last[year]-$last[month]" != "$NOW[year]-$NOW[month]" ]]; then
 		msg "new month, requesting L1 backup"
 		BACKUP_LEVEL=1
-	elif [[ $c_down != $l_dow ]]; then
+	elif [[ "$last[year]-$last[week]" != "$NOW[year]-$NOW[week]" ]]; then
 		msg "new week, requesting L2 backup"
 		BACKUP_LEVEL=2
 	else
@@ -203,6 +163,54 @@ schedule_yearly_prune() {
 	_prune_backups_for_level 2 5
 	_prune_backups_for_level 1 14
 	_prune_backups_for_level 0 5
+}
+
+_parse_time() {
+	local time="$1" match sep
+	if [[ -z "$time" ]]; then
+		time="$epochtime[1]"
+	fi
+	msg -debug "parsing time $time"
+	if [[ $time =~ '^\d+-\d+-\d+([T -])\d+:\d+:\d+$' ]]; then
+		sep="$match[1]"
+		strftime -r -s time "%Y-%m-%d${sep}%H:%M:%S" "$time"
+	elif [[ $time =~ '^\d+-\d+-\d+([T -])\d+:\d+$' ]]; then
+		sep="$match[1]"
+		strftime -r -s time "%Y-%m-%d${sep}%H:%M" "$time"
+	elif [[ $time =~ '^\d+-\d+-\d+$' ]]; then
+		strftime -r -s time '%Y-%m-%d' "$time"
+	elif [[ $time =~ "^\d+$" ]]; then
+		# everything is fine
+	else
+		msg -error "invalid time $time"
+		exit 2
+	fi
+	msg -debug "extracting from time $time"
+	echo unix $time
+	strftime "date %F" "$time"
+	strftime "iso %FT%H:%M:%S" "$time"
+	strftime "year %Y" "$time"
+	strftime "month %m" "$time"
+	strftime "day %f" "$time"
+	strftime "week %V" "$time"
+}
+
+_last_backup_time() {
+	scan_backups
+	pcre_compile '^.*?-(\d+-\d+-\d+)(-\d+:\d+:\d+)?'
+	if ((${#BACKUPS})) && pcre_match "$BACKUPS[-1]"; then
+		if [[ $match[2] ]]; then
+			msg -debug "backup $BACKUPS[-1] contains full time"
+			last="$match[1]$match[2]"
+			strftime -r -s ltime "%Y-%m-%d-%H:%M:%S" "$last"
+		else
+			msg -debug "backup $BACKUPS[-1] contains only date"
+			last="$match[1]"
+			strftime -r -s ltime "%Y-%m-%d" "$last"
+		fi
+		msg -debug "last backup on $last ($ltime)"
+		echo $ltime
+	fi
 }
 
 #endregion
@@ -530,7 +538,8 @@ zparseopts -D -E -F -a cli_opts - \
 	m: -method: \
 	N: -name: \
 	W: -work-dir: \
-	x -one-file-system
+	x -one-file-system \
+	-show-time
 
 if (($?)); then
 	exit 2
@@ -589,6 +598,9 @@ while ((${#cli_opts})); do
 	-x | --one-file-system)
 		opt_onefs=1
 		;;
+	--show-time)
+		action=show-time
+		;;
 	esac
 done
 
@@ -609,11 +621,16 @@ if [[ -z $BACKUP_DIR ]]; then
 	msg -error "no backup directory specified"
 	exit 2
 fi
+
+msg -debug "parsing backup time"
+typeset -A NOW=($(_parse_time "${BACKUP_TIME}"))
 #endregion
 
 if [[ $action = list ]]; then
 	list_backups
 	exit
+elif [[ $action == show-time ]]; then
+	echo "${NOW}"
 fi
 
 scan_backups
