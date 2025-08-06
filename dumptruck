@@ -539,8 +539,7 @@ zparseopts -D -E -F -a cli_opts - \
 	m: -method: \
 	N: -name: \
 	W: -work-dir: \
-	x -one-file-system \
-	-show-time
+	x -one-file-system
 
 if (($?)); then
 	exit 2
@@ -599,9 +598,6 @@ while ((${#cli_opts})); do
 	-x | --one-file-system)
 		opt_onefs=1
 		;;
-	--show-time)
-		action=show-time
-		;;
 	esac
 done
 
@@ -630,8 +626,6 @@ typeset -A NOW=($(_parse_time "${BACKUP_TIME}"))
 if [[ $action = list ]]; then
 	list_backups
 	exit
-elif [[ $action == show-time ]]; then
-	echo "${NOW}"
 fi
 
 scan_backups
