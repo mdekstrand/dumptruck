@@ -400,7 +400,7 @@ EOF
 gnutar_backup() {
 	local tar_cmd fs fixed_fs=0
 	msg "creating gnutar backup at $BACKUP_FILE"
-	tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches)
+	tar_cmd=(tar cf - --listed-incremental="$BACKUP_WORK/$GT_SNAR.tmp" --exclude-caches --exclude-ignore=.dtignore)
 	if (($opt_onefs)); then
 		tar_cmd+='--one-file-system'
 	fi
