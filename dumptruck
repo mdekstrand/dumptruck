@@ -423,9 +423,15 @@ gnutar_backup() {
 	tar_cmd+=("$@")
 	msg -debug "backup command: $tar_cmd"
 	if ((!$opt_dry)); then
-		if ! "$tar_cmd[@]" | write_backup; then
-			msg -error "failed to write backup"
-			exit 4
+		"$tar_cmd[@]" | write_backup
+		local ec="$?" ps=("${pipestatus[@]}")
+		if (($ec)); then
+			if (( $ps[1] == 1 )); then
+				msg -warn "one or more input files changed during backup"
+			else
+				msg -error "failed to write backup"
+				exit 4
+			fi
 		fi
 	fi
 }
