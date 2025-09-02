@@ -75,6 +75,11 @@ when setting up backups in a _systemd_ service.
 **-x, -\-one-file-system**
 :   Don't cross filesystem boundaries when backing up.  This option is only
     respected by the _gnutar_ backend; _xfsdump_ is always limited to one FS.
+    This option is the default.
+
+**-X, -\-cross-fs-boundaries**
+:   Cross filesystem boundaries when backed up. Not supportred by the _xfsdump_ 
+	backend.
 
 # SCHEDULES
 
